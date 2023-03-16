@@ -129,7 +129,7 @@ int main( int nargs, char* argv[] )
     bool animate=false;
     double dt = 0.1;
 
-    
+    // variables used 
     std::size_t numberOfPoints = cloud.numberOfPoints();
     std::size_t numberOfVortices = vortices.numberOfVortices();
     std::vector<double> buffer_data;// buffer : vector of vortices and then of points from cloud
@@ -140,14 +140,11 @@ int main( int nargs, char* argv[] )
     else{
         size_of_buffer = 2*numberOfPoints;
     }
-
-
-    Geometry::Point<double> buffer_pt;
     buffer_data.resize(size_of_buffer);
     double intensity;
     Geometry::Point<double> the_point;
-    bool running=true;
-    bool START=false;
+    bool running=true; //The window is open
+    bool START=false; // The calculus is asked / needed
     
 
     // Initialize MPI
@@ -157,9 +154,6 @@ int main( int nargs, char* argv[] )
     MPI_Comm_dup(MPI_COMM_WORLD, &global);
     MPI_Comm_size(global, &nbp);
     MPI_Comm_rank(global, &rank);
-    MPI_Status status;
-    std::size_t i; // index of while loops
-    std::size_t i_loc; //index of the vortice
     MPI_Request request;
 
 
@@ -180,19 +174,13 @@ int main( int nargs, char* argv[] )
             bool advance = false;
             auto start = std::chrono::system_clock::now();
             
-            
-            // on inspecte tous les évènements de la fenêtre qui ont été émis depuis la précédente itération
             sf::Event event;
-
-
-            // Separer calcul et graphique :
-            // Le processus 0 gere la partie graphique et envoi des ordres aux processus s'occupant de la partie calcul
             while (myScreen.pollEvent(event))
             {
                 // évènement "fermeture demandée" : on ferme la fenêtre
                 if (event.type == sf::Event::Closed){
                     running = false;
-                    MPI_Recv(&buffer_data[0], size_of_buffer, MPI_DOUBLE,1, 101, global, MPI_STATUS_IGNORE);
+                    //MPI_Recv(&buffer_data[0], size_of_buffer, MPI_DOUBLE,1, 101, global, MPI_STATUS_IGNORE);
                     MPI_Send(&running, 1, MPI_DOUBLE, 1, 1010, global);
                     myScreen.close();
                 }
@@ -214,18 +202,25 @@ int main( int nargs, char* argv[] )
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right)) advance = true;
             }
             
+            // Affichage et evaluation 
+
+            myScreen.clear(sf::Color::Black);
+            std::string strDt = std::string("Time step : ") + std::to_string(dt);
+            myScreen.drawText(strDt, Geometry::Point<double>{50, double(myScreen.getGeometry().second-96)});
+            myScreen.displayVelocityField(grid, vortices);
+            myScreen.displayParticles(grid, vortices, cloud);
+            auto end = std::chrono::system_clock::now();
+            std::chrono::duration<double> diff = end - start;
+            std::cout<<"Temps : " << diff.count()<<std::endl;
+            std::string str_fps = std::string("FPS : ") + std::to_string(1./diff.count());
+            myScreen.drawText(str_fps, Geometry::Point<double>{300, double(myScreen.getGeometry().second-96)});
+            myScreen.display();
             
-            // Attente de message 
-            // message
-            //MPI_Recv(&buffer_data, size_of_buffer, MPI_DOUBLE, MPI_ANY_SOURCE, MPI_ANY_TAG, global, &status);
-            //std::cout<<"\n\n MESSAGE RECEIVED ! \n"<<std::endl;
-            //re-contruction of cloud from buffer_data :
+            
+            // Update du cloud et de vortices :
             START = animate | advance;
             if(START){
                 buffer_data.clear();
-
-                //buffer_data.clear();
-
                 MPI_Recv(&buffer_data[0], size_of_buffer, MPI_DOUBLE, 1, 101, global, MPI_STATUS_IGNORE);
                 if(isMobile){
                     for(std::size_t i=0; i<numberOfVortices; i++){
@@ -252,16 +247,6 @@ int main( int nargs, char* argv[] )
             }
             
             
-            myScreen.clear(sf::Color::Black);
-            std::string strDt = std::string("Time step : ") + std::to_string(dt);
-            myScreen.drawText(strDt, Geometry::Point<double>{50, double(myScreen.getGeometry().second-96)});
-            myScreen.displayVelocityField(grid, vortices);
-            myScreen.displayParticles(grid, vortices, cloud);
-            auto end = std::chrono::system_clock::now();
-            std::chrono::duration<double> diff = end - start;
-            std::string str_fps = std::string("FPS : ") + std::to_string(1./diff.count());
-            myScreen.drawText(str_fps, Geometry::Point<double>{300, double(myScreen.getGeometry().second-96)});
-            myScreen.display();
             
             }
 
@@ -307,8 +292,6 @@ int main( int nargs, char* argv[] )
         }
         
     }
-
-    
 
     // Finalize MPI
     MPI_Finalize();
