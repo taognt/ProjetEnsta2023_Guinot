@@ -76,6 +76,7 @@ namespace Geometry
             m_setOfPoints.push_back(a_point);
         }
 
+
         CloudOfPoints& operator = ( CloudOfPoints const& ) = default;
         CloudOfPoints& operator = ( CloudOfPoints     && ) = default;
     private:
